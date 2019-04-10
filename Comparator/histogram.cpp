@@ -12,7 +12,7 @@
 using namespace std;
 using namespace cv;
 
-void histogram(Mat& image1, Mat& image2) {
+void histScore(Mat& image1, Mat& image2) {
 	Mat hsv, hsv2;
 	cvtColor(image1, hsv, COLOR_BGR2HSV);
 	cvtColor(image2, hsv2, COLOR_BGR2HSV);
