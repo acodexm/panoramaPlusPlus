@@ -15,10 +15,11 @@
 using namespace std;
 using namespace cv;
 void histScore(Mat& image1, Mat& image2);
-Mat extractDiff(Mat& image1, Mat& image2,  Point& matchLoc);
+Mat extractDiff(Mat& image1, Mat& image2, Point& matchLoc);
 
 // Contains the description of the match
 typedef struct Match_desc {
+	Mat resized;
 	bool init;
 	double maxVal;
 	Point maxLoc;
@@ -49,11 +50,9 @@ int main(int argc, char* argv[])
 		template_img = arg_img_1;
 	}
 
-
 	namedWindow("DBG", WINDOW_AUTOSIZE);
 
-
-	Mat template_mat= template_img.clone();
+	Mat template_mat = template_img.clone();
 
 	// Find size
 	int tW, tH;
@@ -63,31 +62,29 @@ int main(int argc, char* argv[])
 	namedWindow("Template Image", WINDOW_AUTOSIZE);
 	imshow("Template Image", template_mat);
 
-	Mat target_img, target_gray, target_resized, target_edged;
-	target_img = src_img.clone(); // Read image
-	const float SCALE_START = 1;
-	const float SCALE_END = 0.2;
+	Mat target_img, target_resized;
+	target_img = src_img.clone(); 
+	const float SCALE_START = 1.5; // 150%
+	const float SCALE_END = 0.5;   // 50%
 	const int SCALE_POINTS = 20;
 
 	Match_desc found;
-	double maxVal,minVal; Point maxLoc,minLoc;
 	for (float scale = SCALE_START; scale >= SCALE_END; scale -= (SCALE_START - SCALE_END) / SCALE_POINTS) {
 		resize(target_img, target_resized, Size(0, 0), scale, scale);// Resize
 
 		// Break if target image becomes smaller than template
 		if (tW > target_resized.cols || tH > target_resized.rows) break;
-
-
-
+			   
 		// Match template
 		Mat result;
 		matchTemplate(target_resized, template_mat, result, CV_TM_CCORR_NORMED);
-
 		
+		double maxVal, minVal; Point maxLoc, minLoc;
 		minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
 
 		// If better match found
 		if (found.init == false || maxVal > found.maxVal) {
+			found.resized = target_resized;
 			found.init = true;
 			found.maxVal = maxVal;
 			found.maxLoc = maxLoc;
@@ -115,8 +112,10 @@ int main(int argc, char* argv[])
 
 	imshow("DBG", target_img);
 
-	Mat currentImage = extractDiff(src_img, template_img, maxLoc);
+	// extract and show diffrence between images => black image means no difference
+	Mat currentImage = extractDiff(found.resized, template_img, found.maxLoc);
 
+	// calculate histogram compare score => (0, 0.2) match (0.2, 1) no match
 	histScore(currentImage, template_img);
 
 	waitKey();

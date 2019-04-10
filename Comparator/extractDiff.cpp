@@ -22,7 +22,7 @@ Mat extractDiff(Mat& image1, Mat& image2, Point& matchLoc) {
 
 	Mat foregroundMask = Mat::zeros(diffImage.rows, diffImage.cols, CV_8UC1);
 
-	float threshold = 10.0f;
+	float threshold = 30.0f;
 	float dist;
 
 	for (int j = 0; j < diffImage.rows; ++j)
