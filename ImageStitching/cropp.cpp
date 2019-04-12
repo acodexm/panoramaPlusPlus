@@ -11,6 +11,11 @@ using namespace cv;
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
 #include <opencv2/core/utility.hpp>
+
+#define TAG "crop image "
+#define ENABLE_LOG true
+#define LOG(msg) std::cout << msg
+#define LOGLN(msg) std::cout << msg << std::endl
 bool checkInteriorExterior(const cv::Mat& mask, const cv::Rect& interiorBB, int& top, int& bottom, int& left, int& right)
 {
 	// return true if the rectangle is fine as it is!
@@ -22,11 +27,12 @@ bool checkInteriorExterior(const cv::Mat& mask, const cv::Rect& interiorBB, int&
 	int y = 0;
 
 	// count how many exterior pixels are at the
+	LOGLN("count exterior pixels");
 	int cTop = 0; // top row
 	int cBottom = 0; // bottom row
 	int cLeft = 0; // left column
 	int cRight = 0; // right column
-							// and choose that side for reduction where mose exterior pixels occured (that's the heuristic)
+	// and choose that side for reduction where mose exterior pixels occured (that's the heuristic)
 
 	for (y = 0, x = 0; x < sub.cols; ++x)
 	{
@@ -106,6 +112,8 @@ bool sortY(cv::Point a, cv::Point b)
 	return a.y < b.y;
 };
 void cropp(Mat& result) {
+	LOGLN("cropping...");
+	int64 cropp_start_time = getTickCount();
 
 	Mat gray;
 	result.convertTo(result, CV_8U);
@@ -136,6 +144,7 @@ void cropp(Mat& result) {
 		}
 	}
 
+	LOGLN("Draw filled contour...");
 
 	// Draw filled contour to obtain a mask with interior parts
 	Mat contourMask = Mat::zeros(result.size(), CV_8UC1);
@@ -157,6 +166,7 @@ void cropp(Mat& result) {
 	int maxYId = (int)(cSortedY.size() - 1);
 
 	Rect interiorBB;
+	LOGLN("Find interior...");
 
 	while ((minXId < maxXId) && (minYId < maxYId))
 	{
@@ -185,4 +195,7 @@ void cropp(Mat& result) {
 	}
 
 	result = result(interiorBB);
+	LOGLN("cropped, total time: " << ((getTickCount() - cropp_start_time) / getTickFrequency()) << " sec");
+
+	return;
 };

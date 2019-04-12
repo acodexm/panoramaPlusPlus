@@ -24,6 +24,9 @@
     <ClInclude Include="cropp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="stitch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -33,6 +36,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="cropp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ocvstitcher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="advancedStitcher.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="simpleStitch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
