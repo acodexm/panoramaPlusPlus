@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../Comparator/logger.h"
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -6,11 +7,14 @@
 #include <sys/stat.h>
 #include <string>
 #include "stitch.h"
+#include "cropp.h"
 #include "opencv2/opencv.hpp"
-#define ENABLE_LOG 1
+
+#define ENABLE_LOG true
 #define TAG "simple stitcher "
-#define LOG(msg) std::cout << msg
-#define LOGLN(msg) std::cout << msg << std::endl
+#define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
+
+
 
 using namespace std;
 using namespace cv;
@@ -24,14 +28,19 @@ namespace {
 	bool compressed = false;
 	static string _resultPath = "simpleResult.jpg";
 }
+
+void cropp(Mat& result);
+
 int simpleStitch(int argc, char** argv) {
+#ifdef ENABLE_LOG
 	int64 app_start_time = getTickCount();
+#endif
 	if (argc == 1)
 	{
-		LOGLN("not enaugh arguments");
+		LOGLN(debug, "not enaugh arguments");
 		return -1;
 	}
-	LOGLN("loading...");
+	LOGLN(debug, "loading...");
 	for (int i = 1; i < argc; ++i) {
 		if (string(argv[i]) == "--cuda") {
 			try_cuda = true;
@@ -69,11 +78,11 @@ int simpleStitch(int argc, char** argv) {
 	_nbImages = static_cast<int>(_imagesPath.size());
 	if (_nbImages < 2)
 	{
-		LOGLN(TAG << "Not enaugh images...");
+		LOGLN(debug,  "Not enaugh images...");
 		return -1;
 	}
 	
-	LOGLN(TAG << "loading and compressing...");
+	LOGLN(debug, "loading and compressing...");
 	for (int k = 0; k < _nbImages; k++) {
 		// Get the image
 		Mat curimage = imread(_imagesPath[k]);
@@ -88,18 +97,20 @@ int simpleStitch(int argc, char** argv) {
 		}
 		imgVec.push_back(newimage);
 	};
-	LOGLN(TAG << "loaded and compressed, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+	LOGLN(debug, "loaded and compressed, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 	
-	LOGLN(TAG << "stitching...");
+	LOGLN(debug, "stitching...");
 	Mat result;
 	Stitcher::Mode mode = Stitcher::PANORAMA;
 	Ptr<Stitcher> stitcher = Stitcher::create(mode, true);
 	Stitcher::Status status = stitcher->stitch(imgVec, result);
-	LOGLN(TAG << "stitched, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+	LOGLN(debug, "stitched, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
-	LOGLN(TAG << "writing...");
+	LOGLN(debug, "cropping...");
+	cropp(result);
+	LOGLN(debug, "saving...");
 	imwrite(_resultPath, result);
 
-	LOGLN(TAG << "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 	return status;
 }

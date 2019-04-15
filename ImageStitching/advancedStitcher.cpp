@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <filesystem>
+#include "../Comparator/logger.h"
 #include "opencv2/opencv_modules.hpp"
 #include <opencv2/core/utility.hpp>
 #include "opencv2/imgcodecs.hpp"
@@ -20,18 +21,17 @@
 #include "opencv2/stitching/detail/warpers.hpp"
 #include "opencv2/stitching/warpers.hpp"
 
-
-#define ENABLE_LOG 1
-#define TAG "advanced stitcher "
-#define LOG(msg) std::cout << msg
-#define LOGLN(msg) std::cout << msg << std::endl
-
 using namespace std;
 using namespace cv;
 using namespace cv::detail;
 namespace fs = std::filesystem;
 
-void cropp(Mat& result);
+
+#define TAG "advanced stitcher "
+#define ENABLE_LOG true
+#define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
+
+void cropp(Mat & result);
 
 static void printUsage()
 {
@@ -106,7 +106,7 @@ namespace {
 	bool try_cuda = false;
 	double work_megapix = 0.6;
 	double seam_megapix = 0.1;
-	double compose_megapix = -1;
+	double compose_megapix = 1.2;
 	float conf_thresh = 1.f;
 	string features_type = "surf";
 	string matcher_type = "homography";
@@ -376,14 +376,14 @@ int advancedStitch(int argc, char** argv)
 	int num_images = static_cast<int>(img_names.size());
 	if (num_images < 2)
 	{
-		LOGLN("Need more images");
+		LOGLN(debug, "Need more images");
 		return -1;
 	}
 
 	double work_scale = 1, seam_scale = 1, compose_scale = 1;
 	bool is_work_scale_set = false, is_seam_scale_set = false, is_compose_scale_set = false;
 
-	LOGLN("Finding features...");
+	LOGLN(debug, "Finding features...");
 #if ENABLE_LOG
 	int64 t = getTickCount();
 #endif
@@ -421,7 +421,7 @@ int advancedStitch(int argc, char** argv)
 
 		if (full_img.empty())
 		{
-			LOGLN("Can't open image " << img_names[i]);
+			LOGLN(debug, "Can't open image " << img_names[i]);
 			return -1;
 		}
 		if (work_megapix < 0)
@@ -448,7 +448,7 @@ int advancedStitch(int argc, char** argv)
 
 		(*finder)(img, features[i]);
 		features[i].img_idx = i;
-		LOGLN("Features in image #" << i + 1 << ": " << features[i].keypoints.size());
+		LOGLN(debug, "Features in image #" << i + 1 << ": " << features[i].keypoints.size());
 
 		resize(full_img, img, Size(), seam_scale, seam_scale);
 		images[i] = img.clone();
@@ -458,9 +458,9 @@ int advancedStitch(int argc, char** argv)
 	full_img.release();
 	img.release();
 
-	LOGLN("Finding features, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Finding features, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
-	LOG("Pairwise matching");
+	LOGLN(debug, "Pairwise matching");
 #if ENABLE_LOG
 	t = getTickCount();
 #endif
@@ -476,12 +476,12 @@ int advancedStitch(int argc, char** argv)
 	(*matcher)(features, pairwise_matches);
 	matcher->collectGarbage();
 
-	LOGLN("Pairwise matching, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Pairwise matching, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	// Check if we should save matches graph
 	if (save_graph)
 	{
-		LOGLN("Saving matches graph...");
+		LOGLN(debug, "Saving matches graph...");
 		ofstream f(save_graph_to.c_str());
 		f << matchesGraphAsString(img_names, pairwise_matches, conf_thresh);
 	}
@@ -506,7 +506,7 @@ int advancedStitch(int argc, char** argv)
 	num_images = static_cast<int>(img_names.size());
 	if (num_images < 2)
 	{
-		LOGLN("Need more images");
+		LOGLN(debug, "Need more images");
 		return -1;
 	}
 
@@ -528,7 +528,7 @@ int advancedStitch(int argc, char** argv)
 		Mat R;
 		cameras[i].R.convertTo(R, CV_32F);
 		cameras[i].R = R;
-		LOGLN("Initial camera intrinsics #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
+		LOGLN(debug, "Initial camera intrinsics #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
 	}
 
 	Ptr<detail::BundleAdjusterBase> adjuster;
@@ -560,7 +560,7 @@ int advancedStitch(int argc, char** argv)
 	vector<double> focals;
 	for (size_t i = 0; i < cameras.size(); ++i)
 	{
-		LOGLN("Camera #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
+		LOGLN(debug, "Camera #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
 		focals.push_back(cameras[i].focal);
 	}
 
@@ -581,7 +581,7 @@ int advancedStitch(int argc, char** argv)
 			cameras[i].R = rmats[i];
 	}
 
-	LOGLN("Warping images (auxiliary)... ");
+	LOGLN(debug, "Warping images (auxiliary)... ");
 #if ENABLE_LOG
 	t = getTickCount();
 #endif
@@ -625,7 +625,7 @@ int advancedStitch(int argc, char** argv)
 			warper_creator = makePtr<cv::SphericalWarper>();
 		else if (warp_type == "fisheye")
 			warper_creator = makePtr<cv::FisheyeWarper>();
-		else if (warp_type == "ê")
+		else if (warp_type == "stereographic")
 			warper_creator = makePtr<cv::StereographicWarper>();
 		else if (warp_type == "compressedPlaneA2B1")
 			warper_creator = makePtr<cv::CompressedRectilinearWarper>(2.0f, 1.0f);
@@ -675,7 +675,7 @@ int advancedStitch(int argc, char** argv)
 	for (int i = 0; i < num_images; ++i)
 		images_warped[i].convertTo(images_warped_f[i], CV_32F);
 
-	LOGLN("Warping images, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Warping images, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	Ptr<ExposureCompensator> compensator = ExposureCompensator::createDefault(expos_comp_type);
 	compensator->feed(corners, images_warped, masks_warped);
@@ -721,7 +721,7 @@ int advancedStitch(int argc, char** argv)
 	images_warped_f.clear();
 	masks.clear();
 
-	LOGLN("Compositing...");
+	LOGLN(debug, "Compositing...");
 #if ENABLE_LOG
 	t = getTickCount();
 #endif
@@ -735,7 +735,7 @@ int advancedStitch(int argc, char** argv)
 
 	for (int img_idx = 0; img_idx < num_images; ++img_idx)
 	{
-		LOGLN("Compositing image #" << indices[img_idx] + 1);
+		LOGLN(debug, "Compositing image #" << indices[img_idx] + 1);
 
 		// Read image and resize it if necessary
 		full_img = imread(img_names[img_idx]);
@@ -817,13 +817,13 @@ int advancedStitch(int argc, char** argv)
 			{
 				MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(blender.get());
 				mb->setNumBands(static_cast<int>(ceil(log(blend_width) / log(2.)) - 1.));
-				LOGLN("Multi-band blender, number of bands: " << mb->numBands());
+				LOGLN(debug, "Multi-band blender, number of bands: " << mb->numBands());
 			}
 			else if (blend_type == Blender::FEATHER)
 			{
 				FeatherBlender* fb = dynamic_cast<FeatherBlender*>(blender.get());
 				fb->setSharpness(1.f / blend_width);
-				LOGLN("Feather blender, sharpness: " << fb->sharpness());
+				LOGLN(debug, "Feather blender, sharpness: " << fb->sharpness());
 			}
 			blender->prepare(corners, sizes);
 		}
@@ -862,19 +862,14 @@ int advancedStitch(int argc, char** argv)
 		blender->blend(result, result_mask);
 
 
-		LOGLN("cropping time xD");
-		LOGLN("result type: " << result.type());
-		LOGLN("result depth: " << result.depth());
-		LOGLN("result channels: " << result.channels());
+		LOGLN(debug, "cropping...");
 		cropp(result);
-		LOGLN("saving time xD");
+		LOGLN(debug, "saving...");
 		imwrite(result_name, result);
-		LOGLN("Compositing, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+		LOGLN(debug, "Compositing, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 	}
-	//cropResult(imread("domyslnie2.png"));
 
-
-	LOGLN("Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 	return 0;
 }
 

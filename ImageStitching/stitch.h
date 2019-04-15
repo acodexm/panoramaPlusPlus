@@ -4,4 +4,5 @@
 int advancedStitch(int argc, char** argv);
 int stitch(int argc, char** argv);
 int simpleStitch(int argc, char** argv);
+extern bool debug;
 #endif

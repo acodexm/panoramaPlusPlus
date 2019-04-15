@@ -12,9 +12,11 @@ ImageStitching/pictures/
 
 
 
-
-
-
+*.png
+*.jpg
+*.jpeg
+*.txt
+*.exe
 
 
 

@@ -32,10 +32,10 @@
     <ClInclude Include="..\ImageStitching\stdafx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="histogram.h">
+    <ClInclude Include="functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="extractDiff.h">
+    <ClInclude Include="logger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

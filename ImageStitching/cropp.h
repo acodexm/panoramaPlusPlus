@@ -4,4 +4,5 @@ using namespace cv;
 #define CROPP_H
 template<typename T>
 void cropp(Mat& result);
+extern bool debug;
 #endif

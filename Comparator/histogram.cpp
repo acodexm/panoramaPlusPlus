@@ -1,7 +1,9 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/objdetect/objdetect.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include "functions.h"
 #include <iostream>
+#include "logger.h"
 #include <fstream>
 #include <string>
 #include "opencv2/opencv_modules.hpp"
@@ -11,8 +13,14 @@
 #include <opencv2/core/utility.hpp>
 using namespace std;
 using namespace cv;
+#define TAG "Histograms "
+#define ENABLE_LOG true
+#define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
 
 void histScore(Mat& image1, Mat& image2) {
+#ifdef ENABLE_LOG
+	int64 app_start_time = getTickCount();
+#endif
 	Mat hsv, hsv2;
 	cvtColor(image1, hsv, COLOR_BGR2HSV);
 	cvtColor(image2, hsv2, COLOR_BGR2HSV);
@@ -61,11 +69,18 @@ void histScore(Mat& image1, Mat& image2) {
 				-1);
 		}
 	double hist_score = compareHist(hist, hist2, HISTCMP_BHATTACHARYYA);
-	
-	cout << "hist_score: " << hist_score << " | ";
 
-	namedWindow("H-S Histogram", 1);
-	imshow("H-S Histogram", histImg);
-	namedWindow("H-S Histogram2", 2);
-	imshow("H-S Histogram2", histImg2);
+	LOGLN(debug, "hist_score: " << hist_score);
+	LOGLN(debug, "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+
+	if (preview) {
+		namedWindow("H-S Histogram", 1);
+		imshow("H-S Histogram", histImg);
+		namedWindow("H-S Histogram2", 2);
+		imshow("H-S Histogram2", histImg2);
+	}
+	else {
+		imwrite(prefix + "histImg.png", histImg);
+		imwrite(prefix + "histImg2.png", histImg);
+	}
 }

@@ -27,6 +27,9 @@
     <ClInclude Include="stitch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Comparator\logger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
