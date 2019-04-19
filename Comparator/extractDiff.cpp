@@ -5,7 +5,7 @@
 #include "opencv2/highgui/highgui.hpp"
 #include <iostream>
 #include <fstream>
-#include <string>
+#include <math.h>
 #include <string>
 #include "opencv2/opencv_modules.hpp"
 #include <opencv2/core/utility.hpp>
@@ -19,9 +19,11 @@ using namespace std;
 #define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
 
 
+using namespace cv;
 Mat extractDiff(Mat& image1, Mat& image2, Point& matchLoc) {
 #ifdef ENABLE_LOG
 	int64 app_start_time = getTickCount();
+	LOGLN(debug, "started... ");
 #endif
 	Mat diffImage, currentImage;
 	Rect contour(matchLoc, Point(matchLoc.x + image2.cols, matchLoc.y + image2.rows));
@@ -48,6 +50,10 @@ Mat extractDiff(Mat& image1, Mat& image2, Point& matchLoc) {
 				foregroundMask.at<unsigned char>(j, i) = 255;
 			}
 		}
+
+	double image_size = ((double)foregroundMask.cols * foregroundMask.rows);
+	float score = roundf(((double)countNonZero(foregroundMask)) / image_size*100);
+	LOGLN(debug, "White: " << score << "%");
 	LOGLN(debug, "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
 	if (preview) {

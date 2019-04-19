@@ -138,6 +138,7 @@
     </ClCompile>
     <ClCompile Include="extractDiff.cpp" />
     <ClCompile Include="histogram.cpp" />
+    <ClCompile Include="matchImage.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ImageStitching\stdafx.h" />

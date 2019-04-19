@@ -13,15 +13,26 @@
 #include <opencv2/core/utility.hpp>
 using namespace std;
 using namespace cv;
-#define TAG "Histograms "
+#define TAG "Histogram compare "
 #define ENABLE_LOG true
 #define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
 
 void histScore(Mat& image1, Mat& image2) {
 #ifdef ENABLE_LOG
 	int64 app_start_time = getTickCount();
+	LOGLN(debug, "started... ");
 #endif
 	Mat hsv, hsv2;
+	if (preview) {
+		namedWindow("picture 1", 1);
+		imshow("H-S Histogram", image1);
+		namedWindow("picture 2", 2);
+		imshow("H-S Histogram2", image2);
+	}
+	else {
+		imwrite(prefix + "ref.png", image1);
+		imwrite(prefix + "test.png", image2);
+	}
 	cvtColor(image1, hsv, COLOR_BGR2HSV);
 	cvtColor(image2, hsv2, COLOR_BGR2HSV);
 	// Quantize the hue to 30 levels
@@ -81,6 +92,6 @@ void histScore(Mat& image1, Mat& image2) {
 	}
 	else {
 		imwrite(prefix + "histImg.png", histImg);
-		imwrite(prefix + "histImg2.png", histImg);
+		imwrite(prefix + "histImg2.png", histImg2);
 	}
 }

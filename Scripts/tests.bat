@@ -1,7 +1,7 @@
-START /W ImageStitching.exe pictures --features orb --compose_megapix 1.2 --advanced --debug
+START /W ImageStitching.exe pictures --features orb --compose_megapix 1.2 --try_cuda yes --save_graph adv_graph.txt --advanced --debug
 ECHO finished ADVANCED IMAGE STITCHING
 
-START /W ImageStitching.exe pictures --custom --debug
+START /W ImageStitching.exe pictures --custom --cuda --debug
 ECHO finished CUSTOM IMAGE STITCHING
 
 START /W ImageStitching.exe pictures --compressed --debug

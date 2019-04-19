@@ -6,6 +6,9 @@
 #include <string>
 #include <filesystem>
 #include "../Comparator/logger.h"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/objdetect/objdetect.hpp"
+#include "opencv2/features2d/features2d.hpp"
 #include "opencv2/opencv_modules.hpp"
 #include <opencv2/core/utility.hpp>
 #include "opencv2/imgcodecs.hpp"
@@ -27,6 +30,7 @@ using namespace cv::detail;
 namespace fs = std::filesystem;
 
 
+#define HAVE_OPENCV_XFEATURES2D
 #define TAG "advanced stitcher "
 #define ENABLE_LOG true
 #define LOGLN(debug, msg) if(debug) { LOG() << TAG << msg << endl ; }
@@ -362,6 +366,7 @@ int advancedStitch(int argc, char** argv)
 	cv::setBreakOnError(true);
 #endif
 
+	cuda::getCudaEnabledDeviceCount();
 	int retval = parseCmdArgs(argc, argv);
 	if (retval)
 		return retval;
@@ -387,20 +392,22 @@ int advancedStitch(int argc, char** argv)
 #if ENABLE_LOG
 	int64 t = getTickCount();
 #endif
-
+LOGLN(debug, "getCudaEnabledDeviceCount: " << cuda::getCudaEnabledDeviceCount());
 	Ptr<FeaturesFinder> finder;
 	if (features_type == "surf")
 	{
+		
+
 #ifdef HAVE_OPENCV_XFEATURES2D
 		if (try_cuda && cuda::getCudaEnabledDeviceCount() > 0)
-			finder = makePtr<SurfFeaturesFinderGpu>();
+		finder = makePtr<SurfFeaturesFinder>();
 		else
 #endif
 			finder = makePtr<SurfFeaturesFinder>();
 	}
 	else if (features_type == "orb")
 	{
-		finder = makePtr<OrbFeaturesFinder>();
+		finder = new OrbFeaturesFinder(Size(4,2), 1000); //= makePtr<OrbFeaturesFinder>();
 	}
 	else
 	{
@@ -528,7 +535,6 @@ int advancedStitch(int argc, char** argv)
 		Mat R;
 		cameras[i].R.convertTo(R, CV_32F);
 		cameras[i].R = R;
-		LOGLN(debug, "Initial camera intrinsics #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
 	}
 
 	Ptr<detail::BundleAdjusterBase> adjuster;
@@ -560,7 +566,6 @@ int advancedStitch(int argc, char** argv)
 	vector<double> focals;
 	for (size_t i = 0; i < cameras.size(); ++i)
 	{
-		LOGLN(debug, "Camera #" << indices[i] + 1 << ":\nK:\n" << cameras[i].K() << "\nR:\n" << cameras[i].R);
 		focals.push_back(cameras[i].focal);
 	}
 

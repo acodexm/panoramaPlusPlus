@@ -24,7 +24,6 @@ namespace {
 	vector<String> _imagesPath;
 	vector<Mat> imgVec;
 	int _nbImages;
-	bool try_cuda = false;
 	bool compressed = false;
 	static string _resultPath = "simpleResult.jpg";
 }
@@ -42,9 +41,7 @@ int simpleStitch(int argc, char** argv) {
 	}
 	LOGLN(debug, "loading...");
 	for (int i = 1; i < argc; ++i) {
-		if (string(argv[i]) == "--cuda") {
-			try_cuda = true;
-		}
+		
 		if (string(argv[i]) == "--compressed") {
 			compressed = true;
 		}
@@ -102,7 +99,7 @@ int simpleStitch(int argc, char** argv) {
 	LOGLN(debug, "stitching...");
 	Mat result;
 	Stitcher::Mode mode = Stitcher::PANORAMA;
-	Ptr<Stitcher> stitcher = Stitcher::create(mode, true);
+	Ptr<Stitcher> stitcher = Stitcher::create(mode);
 	Stitcher::Status status = stitcher->stitch(imgVec, result);
 	LOGLN(debug, "stitched, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 

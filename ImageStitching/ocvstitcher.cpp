@@ -53,14 +53,6 @@ int COMPOSITOR_STEP = 30;
  ************/
 namespace {
 
-	/** ??? **/
-	bool preview = false;
-
-	/** don't support cuda at this time ... **/
-	bool try_cuda = false;
-
-	/** neither openCL **/
-	bool try_ocl = false;
 
 	/** working resolution **/
 	double work_megapix = 0.35;
@@ -89,20 +81,24 @@ namespace {
 	bool do_wave_correct = true;
 
 	WaveCorrectKind wave_correct = detail::WAVE_CORRECT_HORIZ;
-	bool save_graph = false;
-	string save_graph_to;
+	bool save_graph = true;
+	string save_graph_to = "graph.txt";
 
-	/** Warp surface type. **/
+	/** Warp surface type. 
+	plane|cylindrical|spherical|fisheye|stereographic
+	**/
 	string warp_type = "spherical";
 
 	/** Exposure compensation method. **/
-	int expos_comp_type = ExposureCompensator::GAIN;
+	int expos_comp_type = ExposureCompensator::GAIN_BLOCKS;
 
 	/** Confidence for feature matching step. **/
 	float match_conf = 0.25f;
 
-	/** Seam estimation method. **/
-	string seam_find_type = "dp_colorgrad";	//dp_** is WAY faster!!!
+	/** Seam estimation method.
+	dp_** is WAY faster!!!
+	**/
+	string seam_find_type = "dp_color";	
 
 	/** Blending method. **/
 	int blend_type = Blender::MULTI_BAND;
@@ -111,16 +107,19 @@ namespace {
 	float blend_strength = 5;
 
 
-	/** orb featureFinder parameters **/
-	Size ORB_GRID_SIZE = Size(1, 1);
-	size_t ORB_FEATURES_N = 3500;
+	/** orb featureFinder parameters
+	* highly important for performance and matching features
+	*
+	**/
+	Size ORB_GRID_SIZE = Size(4, 2);
+	size_t ORB_FEATURES_N = 1000;
 }
 /*************
  * ATTRIBUTES
  ************/
 
  /** final panorama name **/
-static string _resultPath="result.jpg";
+static string _resultPath = "result.jpg";
 
 /** loaded images loaded **/
 vector<String> _imagesPath;
@@ -149,8 +148,9 @@ int stitch(int argc, char** argv)
 	}
 
 	for (int i = 1; i < argc; ++i) {
-		if (string(argv[i]) == "--cuda") {
-			try_cuda = true;
+		if (string(argv[i]) == "--warp_type") {
+			warp_type = string(argv[i + 1]);
+			remove(argv[i]);
 		}
 		else if (string(argv[i]).find("--") != string::npos) {
 			continue;
@@ -182,7 +182,7 @@ int stitch(int argc, char** argv)
 
 
 #if ENABLE_LOG
-	LOGLN(debug,  "Compose panorama...");
+	LOGLN(debug, "Compose panorama...");
 	int64 app_start_time = getTickCount();
 #endif
 
@@ -192,7 +192,7 @@ int stitch(int argc, char** argv)
 	_nbImages = static_cast<int>(_imagesPath.size());
 	if (_nbImages < 2)
 	{
-		LOGLN(debug,  "Not enaugh images...");
+		LOGLN(debug, "Not enaugh images...");
 		return -1;
 	}
 
@@ -201,7 +201,7 @@ int stitch(int argc, char** argv)
 
 	// ================ Finding features... ==================
 #if ENABLE_LOG
-	LOGLN(debug,  "Finding features...");
+	LOGLN(debug, "Finding features...");
 	int64 t = getTickCount();
 #endif
 
@@ -220,7 +220,7 @@ int stitch(int argc, char** argv)
 
 		if (full_img.empty())
 		{
-			LOGLN(debug,  "Can't open image %s" << _imagesPath[i].c_str());
+			LOGLN(debug, "Can't open image %s" << _imagesPath[i].c_str());
 			return -1;
 		}
 		if (work_megapix < 0)
@@ -259,22 +259,22 @@ int stitch(int argc, char** argv)
 	full_img.release();
 	img.release();
 
-	LOGLN(debug,  "Finding features, time: " << ((getTickCount() - t) / getTickFrequency())<<" sec");
+	LOGLN(debug, "Finding features, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	// ================ Pairwise matching... ==================
 #if ENABLE_LOG
-	LOGLN(debug,  "Pairwise matching");
+	LOGLN(debug, "Pairwise matching");
 	t = getTickCount();
 #endif
 
 
 	vector<MatchesInfo> pairwise_matches;
-	BestOf2NearestMatcher matcher(try_cuda, match_conf);
+	BestOf2NearestMatcher matcher(false, match_conf);
 	matcher(features, pairwise_matches, _matchingMask);
 	matcher.collectGarbage();
 	_progress += MATCHER_STEP;
 
-	LOGLN(debug,  "Pairwise matching, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Pairwise matching, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 
 
@@ -309,16 +309,17 @@ int stitch(int argc, char** argv)
 	_nbImages = static_cast<int>(_imagesPath.size());
 	if (_nbImages < 2)
 	{
-		LOGLN(debug,  "Need more images");
+		LOGLN(debug, "Need more images");
 
 		return -1;
 	}
 	// ================ estimate homography... ==================
-	LOGLN(debug,  "estimate homography");
+	LOGLN(debug, "Estimate homography");
 
 	HomographyBasedEstimator estimator;
 	vector<CameraParams> cameras;
 	estimator(features, pairwise_matches, cameras);
+	LOGLN(debug, "Estimate homography, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 
 	for (size_t i = 0; i < cameras.size(); ++i)
@@ -326,7 +327,6 @@ int stitch(int argc, char** argv)
 		Mat R;
 		cameras[i].R.convertTo(R, CV_32F);
 		cameras[i].R = R;
-		LOGLN(debug,  "Initial intrinsics #" << _indices[i] + 1 << ":\n" << cameras[i].K());
 	}
 	_progress += ESTIMATOR_STEP;
 
@@ -347,20 +347,19 @@ int stitch(int argc, char** argv)
 	if (ba_refine_mask[3] == 'x') refine_mask(1, 1) = 1;
 	if (ba_refine_mask[4] == 'x') refine_mask(1, 2) = 1;
 	adjuster->setRefinementMask(refine_mask);
-	LOGLN(debug,  "adjusting bundle..");
+	LOGLN(debug, "Adjusting bundle");
 
 	(*adjuster)(features, pairwise_matches, cameras);
 	_progress += ADJUSTER_STEP;
+	LOGLN(debug, "Adjusting bundle, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 
 	// Find median focal length
-	LOGLN(debug,  "Find median focal length");
+	LOGLN(debug, "Find median focal length");
 
 	vector<double> focals;
 	for (size_t i = 0; i < cameras.size(); ++i)
 	{
-		LOGLN(debug,  "Camera #" << _indices[i] + 1 << ":\n" << cameras[i].K());
-
 		focals.push_back(cameras[i].focal);
 	}
 
@@ -370,6 +369,7 @@ int stitch(int argc, char** argv)
 		warped_image_scale = static_cast<float>(focals[focals.size() / 2]);
 	else
 		warped_image_scale = static_cast<float>(focals[focals.size() / 2 - 1] + focals[focals.size() / 2]) * 0.5f;
+	LOGLN(debug, "Find median focal lengths, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	if (do_wave_correct)
 	{
@@ -383,14 +383,14 @@ int stitch(int argc, char** argv)
 	// ================ Warping images... ==================
 
 #if ENABLE_LOG
-	LOGLN(debug,  "Warping images (auxiliary)... ");
+	LOGLN(debug, "Warping images (auxiliary)... ");
 
 	t = getTickCount();
 #endif
 
 	vector<Point> corners(_nbImages);
 	vector<UMat> masks_warped(_nbImages);
-	vector<Mat> images_warped(_nbImages);
+	vector<UMat> images_warped(_nbImages);
 	vector<Size> sizes(_nbImages);
 	vector<Mat> masks(_nbImages);
 
@@ -446,17 +446,16 @@ int stitch(int argc, char** argv)
 	for (int i = 0; i < _nbImages; ++i)
 		images_warped[i].convertTo(images_warped_f[i], CV_32F);
 
-	images_warped.clear();
 
-	LOGLN(debug,  "Warping images, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Warping images, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	// ================ Compensate exposure... ==================
-	LOGLN(debug,  "Compensate exposure");
+	LOGLN(debug, "Compensate exposure");
 	Ptr<ExposureCompensator> compensator = ExposureCompensator::createDefault(expos_comp_type);
-	//TODO : to remove
-	//compensator->feed(corners, images_warped, masks_warped);
-	compensator->feed(corners, images_warped_f, masks_warped);
+
+	compensator->feed(corners, images_warped, masks_warped);
 	_progress += COMPENSATOR_STEP;
+	LOGLN(debug, "Compensate exposure, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	Ptr<SeamFinder> seam_finder;
 	if (seam_find_type == "no")
@@ -465,22 +464,12 @@ int stitch(int argc, char** argv)
 		seam_finder = new detail::VoronoiSeamFinder();
 	else if (seam_find_type == "gc_color")
 	{
-#ifdef HAVE_OPENCV_CUDA
-		if (try_cuda && cuda::getCudaEnabledDeviceCount() > 0)
-			seam_finder = new detail::GraphCutSeamFinderGpu(GraphCutSeamFinderBase::COST_COLOR);
-		else
-#endif
-			seam_finder = new detail::GraphCutSeamFinder(GraphCutSeamFinderBase::COST_COLOR);
+		seam_finder = new detail::GraphCutSeamFinder(GraphCutSeamFinderBase::COST_COLOR);
 
 	}
 	else if (seam_find_type == "gc_colorgrad")
 	{
-#ifdef HAVE_OPENCV_CUDA
-		if (try_cuda && cuda::getCudaEnabledDeviceCount() > 0)
-			seam_finder = new detail::GraphCutSeamFinderGpu(GraphCutSeamFinderBase::COST_COLOR_GRAD);
-		else
-#endif
-			seam_finder = new detail::GraphCutSeamFinder(GraphCutSeamFinderBase::COST_COLOR_GRAD);
+		seam_finder = new detail::GraphCutSeamFinder(GraphCutSeamFinderBase::COST_COLOR_GRAD);
 	}
 	else if (seam_find_type == "dp_color")
 		seam_finder = new detail::DpSeamFinder(DpSeamFinder::COLOR);
@@ -493,20 +482,22 @@ int stitch(int argc, char** argv)
 	}
 	// ================ finding seam... ==================
 
-	LOGLN(debug,  "finding seam");
+	LOGLN(debug, "Finding seam");
 
 	seam_finder->find(images_warped_f, corners, masks_warped);
 	_progress += SEAM_STEP;
+	LOGLN(debug, "Finding seam, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
 	// Release unused memory
 	images.clear();
+	images_warped.clear();
 	images_warped_f.clear();
 	masks.clear();
 
 
 	// ================ Compositing... ==================
 #if ENABLE_LOG
-	LOGLN(debug,  "Compositing...");
+	LOGLN(debug, "Compositing...");
 	t = getTickCount();
 #endif
 
@@ -518,7 +509,7 @@ int stitch(int argc, char** argv)
 	_progressStep = (float)COMPOSITOR_STEP / (float)_nbImages;
 	for (int img_idx = 0; img_idx < _nbImages; ++img_idx)
 	{
-		LOGLN(debug,  "Compositing image #" << _indices[img_idx] + 1);
+		LOGLN(debug, "Compositing image #" << _indices[img_idx] + 1);
 
 		// Read image and resize it if necessary
 		full_img = imread(_imagesPath[img_idx]);
@@ -591,22 +582,22 @@ int stitch(int argc, char** argv)
 
 		if (!blender)
 		{
-			blender = Blender::createDefault(blend_type, try_cuda);
+			blender = Blender::createDefault(blend_type, false);
 			Size dst_sz = resultRoi(corners, sizes).size();
 			float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
 			if (blend_width < 1.f)
-				blender = Blender::createDefault(Blender::NO, try_cuda);
+				blender = Blender::createDefault(Blender::NO, false);
 			else if (blend_type == Blender::MULTI_BAND)
 			{
 				MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(static_cast<Blender*>(blender));
 				mb->setNumBands(static_cast<int>(ceil(log(blend_width) / log(2.)) - 1.));
-				LOGLN(debug,  "Multi-band blender, number of bands: " << mb->numBands());
+				LOGLN(debug, "Multi-band blender, number of bands: " << mb->numBands());
 			}
 			else if (blend_type == Blender::FEATHER)
 			{
 				FeatherBlender* fb = dynamic_cast<FeatherBlender*>(static_cast<Blender*>(blender));
 				fb->setSharpness(1.f / blend_width);
-				LOGLN(debug,  "Feather blender, sharpness: " << fb->sharpness());
+				LOGLN(debug, "Feather blender, sharpness: " << fb->sharpness());
 			}
 			blender->prepare(corners, sizes);
 		}
@@ -619,13 +610,13 @@ int stitch(int argc, char** argv)
 	Mat result, result_mask;
 	blender->blend(result, result_mask);
 
-	LOGLN(debug,  "Compositing, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
-	LOGLN(debug,  "cropping...");
+	LOGLN(debug, "Compositing, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+	LOGLN(debug, "cropping...");
 	cropp(result);
-	LOGLN(debug,  "saving...");
+	LOGLN(debug, "saving...");
 	imwrite(_resultPath, result);
 
-	LOGLN(debug,  "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
+	LOGLN(debug, "Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
 	return 0;
 }
